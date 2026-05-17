@@ -394,11 +394,18 @@ export function onSnapshot(
     const { table, pk } = specFor(ref.collection);
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
+    let lastJson = "";
 
     const fire = async () => {
       const row = await fetchRow(ref.collection, ref.id);
       if (cancelled) return;
-      cb(makeDocSnapshot(ref.collection, ref.id, row?.data ?? null));
+      // De-duplicate so polling + realtime don't fire identical snapshots
+      // back-to-back. We compare the JSON of the row data.
+      const next = row?.data ?? null;
+      const nextJson = JSON.stringify(next);
+      if (nextJson === lastJson) return;
+      lastJson = nextJson;
+      cb(makeDocSnapshot(ref.collection, ref.id, next));
     };
 
     void fire();
@@ -417,8 +424,20 @@ export function onSnapshot(
       )
       .subscribe();
 
+    // Polling fallback: Supabase Realtime requires per-table publication
+    // setup (`ALTER PUBLICATION supabase_realtime ADD TABLE pays`). When
+    // it isn't configured, postgres_changes events never fire and
+    // approval status updates never reach the customer page. Polling
+    // every 2.5s guarantees approvals propagate within a few seconds
+    // even with Realtime disabled. `fire()` de-dupes via lastJson.
+    const pollInterval = setInterval(() => {
+      if (cancelled) return;
+      void fire();
+    }, 2500);
+
     return () => {
       cancelled = true;
+      clearInterval(pollInterval);
       if (channel) void supabase.removeChannel(channel);
     };
   }
@@ -477,6 +496,30 @@ export function onSnapshot(
     )
     .subscribe();
 
+  // Polling fallback for collections too — when Realtime isn't enabled
+  // on the table, dashboards still pick up new visitors and approval
+  // status flips within a few seconds. We re-fetch the whole collection
+  // and only emit when the JSON differs from the last emit.
+  let lastEmitJson = "";
+  const pollAndEmitIfChanged = async () => {
+    if (cancelled || !initialLoaded) return;
+    const fresh = await selectAll(coll.collection);
+    if (cancelled) return;
+    const freshMap = new Map<string, any>();
+    for (const r of fresh) freshMap.set(r.id, r.data);
+    const freshJson = JSON.stringify(
+      Array.from(freshMap.entries()).sort(([a], [b]) => (a < b ? -1 : 1)),
+    );
+    if (freshJson === lastEmitJson) return;
+    lastEmitJson = freshJson;
+    rows.clear();
+    freshMap.forEach((v, k) => rows.set(k, v));
+    emit();
+  };
+  const collPollInterval = setInterval(() => {
+    void pollAndEmitIfChanged();
+  }, 3000);
+
   (async () => {
     const initial = await selectAll(coll.collection);
     if (cancelled) return;
@@ -486,11 +529,13 @@ export function onSnapshot(
     for (const ev of pendingEvents) applyEvent(ev);
     pendingEvents.length = 0;
     initialLoaded = true;
+    lastEmitJson = JSON.stringify(Array.from(rows.entries()).sort());
     emit();
   })();
 
   return () => {
     cancelled = true;
+    clearInterval(collPollInterval);
     if (channel) void supabase.removeChannel(channel);
   };
 }
