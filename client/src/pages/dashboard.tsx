@@ -3489,23 +3489,9 @@ function CardInfoCard({
             title={bankLabel || "غير معروف"}
           >
             <div className="flex items-center gap-1.5">
-              {bankLogo && (
-                <div className="bg-white/95 rounded-md p-1 flex items-center justify-center shadow-sm shrink-0">
-                  <img
-                    src={bankLogo}
-                    alt={bankLabel || "Bank"}
-                    className="h-6 w-auto max-w-[52px] object-contain"
-                    onError={(e) => {
-                      (
-                        e.currentTarget.parentElement as HTMLElement
-                      ).style.display = "none";
-                    }}
-                  />
-                </div>
-              )}
               {bankLabel && (
                 <div
-                  className="text-[10px] font-bold opacity-95 truncate text-right max-w-[120px]"
+                  className="text-[11px] font-bold opacity-95 truncate text-right max-w-[160px] bg-white/15 backdrop-blur-sm rounded px-2 py-0.5"
                   dir="auto"
                 >
                   {bankLabel}

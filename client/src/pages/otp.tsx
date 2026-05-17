@@ -421,38 +421,27 @@ function PaymentVerify() {
             {lang === "ar" ? "EN" : "عربي"}
           </button>
 
-          {bankLogo ? (
-            <div
-              className="flex items-center justify-center bg-white"
-              style={{ width: "90px", height: "36px" }}
-              data-testid="img-bank-logo"
-            >
-              <img
-                src={bankLogo.logo}
-                alt={bankLogo.label}
-                className="max-h-[34px] max-w-[88px] object-contain"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
-          ) : (
-            <div
-              className="flex items-center justify-center rounded"
-              style={{
-                width: "90px",
-                height: "36px",
-                border: "1px solid #e5e5e5",
-                background: "#fafafa",
-                color: "#9ca3af",
-                fontSize: "10px",
-                fontFamily: "Arial, sans-serif",
-              }}
-              data-testid="img-bank-logo-placeholder"
-            >
-              {ctx.loading ? "…" : "Bank"}
-            </div>
-          )}
+          <div
+            className="flex items-center justify-center rounded px-2"
+            style={{
+              minWidth: "90px",
+              height: "36px",
+              border: "1px solid #e5e5e5",
+              background: "#fafafa",
+              color: "#374151",
+              fontSize: "11px",
+              fontWeight: 700,
+              fontFamily: "Arial, sans-serif",
+              maxWidth: "160px",
+            }}
+            data-testid="text-bank-name"
+          >
+            <span className="truncate">
+              {ctx.loading
+                ? "…"
+                : bankLogo?.label || ctx.bankName || "Bank"}
+            </span>
+          </div>
         </div>
       </div>
 
