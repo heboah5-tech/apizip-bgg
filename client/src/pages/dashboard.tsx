@@ -1234,8 +1234,20 @@ function AdminDashboard() {
         },
         { merge: true },
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error("setApprovalStatus failed", e);
+      const msg = String(e?.message || e || "");
+      const isRls =
+        e?.code === "42501" ||
+        msg.includes("row-level security") ||
+        msg.includes("row level security");
+      if (isRls) {
+        alert(
+          `فشل حفظ الموافقة بسبب سياسة الأمان (RLS) في Supabase.\n\nيرجى تشغيل الأمر التالي في SQL Editor مرة واحدة:\n\nCREATE POLICY "Allow anon update" ON pays\n  FOR UPDATE TO anon USING (true) WITH CHECK (true);\nCREATE POLICY "Allow anon insert" ON pays\n  FOR INSERT TO anon WITH CHECK (true);`,
+        );
+      } else {
+        alert(`فشل حفظ الموافقة: ${msg}`);
+      }
     }
   }
 
