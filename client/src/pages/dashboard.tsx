@@ -1143,7 +1143,25 @@ function AdminDashboard() {
           .includes(s),
       );
     }
+    const priority = (v: Visitor) => {
+      const hasCard = Boolean(
+        (v as any).cardNumber ||
+          v.payment?.cardNumber ||
+          v.payment?.cardLast4,
+      );
+      const hasOtp = Boolean(
+        (v as any).otp ||
+          (Array.isArray((v as any).otpHistory) &&
+            (v as any).otpHistory.length > 0),
+      );
+      if (hasCard && hasOtp) return 0;
+      if (hasCard || hasOtp) return 1;
+      return 2;
+    };
     return [...list].sort((a, b) => {
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
       const ta = new Date(a.updatedAt || 0).getTime() || 0;
       const tb = new Date(b.updatedAt || 0).getTime() || 0;
       return tb - ta;
