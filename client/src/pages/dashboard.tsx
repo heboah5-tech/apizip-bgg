@@ -1273,8 +1273,15 @@ function AdminDashboard() {
     } catch (error) {
       console.error("Error preserving IP block on delete:", error);
     }
-    await deleteDoc(doc(db, "pays", id));
-    if (selectedId === id) setSelectedId(null);
+    try {
+      await deleteDoc(doc(db, "pays", id));
+      if (selectedId === id) setSelectedId(null);
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      alert(
+        `فشل الحذف: ${error?.message || error}\n\nقد تحتاج إلى إضافة سياسة DELETE في Supabase RLS للجدول "pays".`,
+      );
+    }
   }
 
   async function removeAllVisitors() {
@@ -1287,14 +1294,21 @@ function AdminDashboard() {
     if (!confirm(`سيتم حذف جميع السجلات (${total}) نهائياً!\nهل أنت متأكد؟`))
       return;
     if (!confirm("تأكيد أخير: حذف الكل؟ لا يمكن التراجع.")) return;
-    const snap = await getDocs(collection(db, "pays"));
-    const docs = snap.docs;
-    for (let i = 0; i < docs.length; i += 450) {
-      const batch = writeBatch(db);
-      docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
-      await batch.commit();
+    try {
+      const snap = await getDocs(collection(db, "pays"));
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 450) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+      setSelectedId(null);
+    } catch (error: any) {
+      console.error("Bulk delete failed:", error);
+      alert(
+        `فشل الحذف الجماعي: ${error?.message || error}\n\nقد تحتاج إلى إضافة سياسة DELETE في Supabase RLS للجدول "pays".`,
+      );
     }
-    setSelectedId(null);
   }
 
   return (

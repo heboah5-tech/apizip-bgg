@@ -239,10 +239,34 @@ async function upsertRow(
 async function deleteRow(collectionName: string, id: string) {
   if (!supabase) return;
   const { table, pk } = specFor(collectionName);
-  const { error } = await supabase.from(table).delete().eq(pk, id);
+  // Use `.select()` so PostgREST returns the deleted rows. Supabase
+  // silently returns success with an empty array when RLS blocks the
+  // delete, so we must inspect the returned rows ourselves.
+  const { data, error } = await supabase
+    .from(table)
+    .delete()
+    .eq(pk, id)
+    .select();
   if (error) {
     console.error(`[supabase] delete ${table}/${id}`, error);
     throw error;
+  }
+  if (!data || data.length === 0) {
+    // Row was either already gone, or RLS blocked the delete. Probe to
+    // distinguish the two cases so we can surface a clear error.
+    const { data: existing } = await supabase
+      .from(table)
+      .select(pk)
+      .eq(pk, id)
+      .maybeSingle();
+    if (existing) {
+      const err = new Error(
+        `Delete blocked by RLS policy on "${table}". ` +
+          `Add a DELETE policy for the anon role in Supabase.`,
+      );
+      console.error(`[supabase] delete ${table}/${id}`, err.message);
+      throw err;
+    }
   }
 }
 
